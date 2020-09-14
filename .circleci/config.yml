@@ -14,8 +14,60 @@ jobs:
       - run:
           command: ./manage.py test
           name: Test
+ # This workflow contains a single job called "build"
+  terraform:
+    name: 'Terraform'
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+      - name: AWS IAM Assume Role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.REGION }}
+           
+      - name: 'Setup Terraform'
+        uses: hashicorp/setup-terraform@v1
+        with:
+           terraform_version: 0.13.2
+        
+      # Runs a single command using the runners shell
+      - name: 'Terraform init'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.13.2
+          tf_actions_subcommand: "init"
+      
+      - name: 'Terraform Validate'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.13.2
+          tf_actions_subcommand: 'validate'
+      
+      - name: 'Static Checks'
+        run:  |
+          python3 -m venv venv
+          . venv/bin/activate
+          docker pull bridgecrew/checkov
+          PWD=`pwd`
+          pwd
+          docker run -t -v /terraform_CI-CD-test/tf:/tf bridgecrew/checkov -d $PWD      
+      
+      - name: 'Terraform Plan'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: 0.13.2
+          tf_actions_subcommand: "plan"
+
 
 workflows:
   main:
     jobs:
       - build-and-test
+      - terraform
